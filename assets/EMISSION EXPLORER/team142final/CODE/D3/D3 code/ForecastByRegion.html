@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<head>
+    <!-- add title -->
+    <title id="page_id">FORECAST VISUALIZATION BY REGION</title>
+    
+    <!-- import required libraries here -->
+    
+    <style>
+        /* define CSS rules here */
+        .legend {
+            font-size: 14px;
+        }
+    
+    </style>
+
+    <title></title>
+</head>
+
+
+<body>
+
+    <script type="text/javascript" src="../lib/d3.v5.min.js"></script>
+    <script type="text/javascript" src="../lib/d3-dsv.min.js"></script>
+    <script type="text/javascript" src="../lib/d3-geo-projection.v2.min.js"></script>
+    <script type="text/javascript" src="../lib/d3-legend.min.js"></script>
+    <script type="text/javascript" src="../lib/topojson.v2.min.js"></script>
+    <!-- Add heading for the visualization -->
+
+    
+    <!-- Create dropdown element here. Options should be added after reading in game file, they should not be created here.-->
+    <select id="regionDropdown">
+            <option value="SERC">SERC</option>
+            <option value="RFC">RFC</option>
+            <option value="WECC">WECC</option>
+            <option value="NPCC">NPCC</option>
+            <option value="MRO">MRO</option>
+            <option value="TX">TX</option>
+    </select>
+    <!-- append visualization svg to this div-->
+    <script>
+    //script type="text/javascript" src="../lib/d3-tip.min.js">
+        // enter code to define margin and dimensions for svg
+        var margin = {top:80, right:40, bottom:100, left:100}
+        var width = 960-margin.left-margin.right;
+        var height = 500-margin.top-margin.bottom;
+        var padding = 5;
+
+        d3.csv("output_D3.csv").then(function(data) {
+            // Parse data
+            data.forEach(function(d) {
+                d.value = +d.value;
+                // Parse other columns as needed
+            });
+            console.log(data)
+
+            // Set up SVG
+            var svg = d3.select("body")
+                .append("svg")
+                .attr("id", "graph")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+            svg.append("text")
+                    .attr("id","title")
+                    .attr("text-anchor", "middle")
+                    .attr("x", (width / 2))
+                    .attr("y", height /8)
+                    .style("font-size", "20px")
+                    .style("font-weight","bold")
+                    .text("Total CO2 emission recorded and forecasted")
+
+            // Create scales
+            var xScale = d3.scaleBand()
+                             .range([0, width])
+                             .padding(0.1);
+
+            var yScale = d3.scaleLinear()
+                             .range([height, 0]);
+
+            // Add X axis
+            var xAxis = svg.append("g")
+                             .attr("transform", `translate(${margin.left}, ${height + margin.top})`);
+
+            // Add Y axis
+            var yAxis = svg.append("g")
+                             .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+            // Add line for selected region
+            var lineSelectedRegion = svg.append("path")
+                                          .attr("class", "line")
+                                          //.attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+            // Add line for selected column
+            var lineSelectedColumn = svg.append("path")
+                                          .attr("class", "line")
+                                          //.attr("transform", `translate(${margin.left}, ${margin.top})`);
+            var legend = svg.append("g")
+                .attr("class", "legend")
+                .attr("transform", "translate(" + (width + margin.left + 20) + "," + margin.top + ")");
+
+            legend.append("text")
+                    .attr("x", -padding*35)
+                    .attr("y", height-padding*10)
+                    .attr("dy", "1em")
+                    .style("text-anchor", "start")
+                    .style("stroke","blue")
+                    .text("Total recorded CO2 emission");
+
+            legend.append("text")
+                    .attr("x", -padding*35)
+                    .attr("y", height-padding*10+20)
+                    .attr("dy", "1em")
+                    .style("text-anchor", "start")
+                    .style("stroke","orange")
+                    .text("Total forecasted CO2 emission");
+
+
+            // Update function
+            function update(selectedRegion) {
+                var filteredData = data.filter(d => d.region === selectedRegion)
+                                       .sort((a, b) => a.period.localeCompare(b.period));
+
+                xScale.domain(filteredData.map(d => d.period));
+                yScale.domain([0, d3.max(filteredData, d => d.value)]);
+
+                xAxis.call(d3.axisBottom(xScale));
+                yAxis.call(d3.axisLeft(yScale));
+                xAxis.append("text")
+                     .attr('id', 'x-axis label')
+                     .attr("text-anchor", "middle")
+                    .attr("x", width / 2)//-margin.left+margin.right)
+                    .attr("y", padding * 7)
+                    .style("font-size", "15px")
+                    .style("fill", "black")
+                    .text("Year")
+                yAxis.append("text")
+                    .attr('id', 'y_axis_label')
+                    .attr("text-anchor", "end")
+                    .attr("transform", "rotate(-90)")
+                    .attr("x", margin.left-(padding*30))
+                    .attr("y", padding * -9)
+                    .style("font-size", "15px")
+                    .style("fill", "black")
+                    .text("CO2 emission in million metric tons")
+
+                var lineGenerator = d3.line()
+                                       .x(d => xScale(d.period) + margin.left + xScale.bandwidth() / 2)
+                                       .y(d => yScale(d.value) + margin.top);
+
+                lineSelectedRegion.datum(filteredData)
+                                  .attr("d", lineGenerator)
+                                  .style("stroke", "blue")
+                                  .style('fill', 'none');
+
+                // Get selected column data
+                var selectedColumnData = filteredData.map(d => ({ period: d.period, value: d[selectedRegion] }))
+
+                lineSelectedColumn.datum(selectedColumnData)
+                                  .attr("d", lineGenerator.curve(d3.curveMonotoneX))
+                                  .style("stroke", "orange")
+                                  .style('fill', 'none'); // Adjust curve as needed
+
+            }
+
+            // Initial update
+            update("SERC");
+
+            // Dropdown change event listener
+            d3.select("#regionDropdown").on("change", function() {
+                const selectedRegion = d3.select(this).property("value");
+                update(selectedRegion);
+            });
+        });
+
+    </script>
+
+</body>
+
+</html>
